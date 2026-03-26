@@ -1,0 +1,385 @@
+openapi: 3.0.0
+info:
+  title: API Testing & Monitoring Tool
+  version: 1.0.0
+  description: Production-ready API testing, monitoring, and analytics backend.
+  contact:
+    name: API Monitor Support
+
+servers:
+  - url: http://localhost:5000
+    description: Local development
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        token: { type: string }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string }
+            role: { type: string }
+    LogEntry:
+      type: object
+      properties:
+        _id: { type: string }
+        method: { type: string, enum: [GET, POST, PUT, DELETE, PATCH] }
+        url: { type: string }
+        responseStatus: { type: integer }
+        responseTimeMs: { type: integer }
+        isSlowApi: { type: boolean }
+        isFailed: { type: boolean }
+        timestamp: { type: string, format: date-time }
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: OK
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string }
+                password: { type: string, minLength: 6 }
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        '200':
+          description: Current user info
+
+  /api/test/run:
+    post:
+      tags: [Testing]
+      summary: Run an API test (proxy request)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method, url]
+              properties:
+                method: { type: string, enum: [GET, POST, PUT, DELETE, PATCH] }
+                url: { type: string }
+                headers: { type: object }
+                body: { type: object }
+                queryParams: { type: object }
+                runLabel: { type: string, description: Label for comparison grouping }
+      responses:
+        '200':
+          description: Test result with timing and response data
+
+  /api/logs:
+    get:
+      tags: [Logs]
+      summary: Get paginated API logs
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: url
+          schema: { type: string }
+        - in: query
+          name: method
+          schema: { type: string }
+        - in: query
+          name: isFailed
+          schema: { type: boolean }
+        - in: query
+          name: isSlowApi
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Paginated log list
+
+  /api/logs/{id}:
+    get:
+      tags: [Logs]
+      summary: Get single log
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Single log entry
+    delete:
+      tags: [Logs]
+      summary: Delete a log
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deleted
+
+  /api/analytics/summary:
+    get:
+      tags: [Analytics]
+      summary: Overall summary stats
+      parameters:
+        - in: query
+          name: startDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Summary with totals and averages
+
+  /api/analytics/trends:
+    get:
+      tags: [Analytics]
+      summary: Response time trends over time
+      parameters:
+        - in: query
+          name: bucket
+          schema: { type: string, enum: [hour, day], default: hour }
+        - in: query
+          name: startDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Time-bucketed analytics
+
+  /api/analytics/endpoints:
+    get:
+      tags: [Analytics]
+      summary: Per-endpoint performance breakdown
+      responses:
+        '200':
+          description: Endpoint stats sorted by avg response time
+
+  /api/compare:
+    get:
+      tags: [Comparison]
+      summary: Compare multiple run labels
+      parameters:
+        - in: query
+          name: labels
+          required: true
+          schema: { type: string, example: "run1,run2" }
+          description: Comma-separated run label names
+      responses:
+        '200':
+          description: Side-by-side comparison per endpoint
+
+  /api/export/csv:
+    get:
+      tags: [Export]
+      summary: Export logs as CSV
+      responses:
+        '200':
+          description: CSV file download
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /api/export/pdf:
+    get:
+      tags: [Export]
+      summary: Export logs as PDF report
+      responses:
+        '200':
+          description: PDF file download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /api/scheduler:
+    get:
+      tags: [Scheduler]
+      summary: List scheduled tests
+      responses:
+        '200':
+          description: List of scheduled tests
+    post:
+      tags: [Scheduler]
+      summary: Create a scheduled test
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, method, url, cronExpression]
+              properties:
+                name: { type: string }
+                method: { type: string }
+                url: { type: string }
+                cronExpression: { type: string, example: "*/5 * * * *" }
+                headers: { type: object }
+                body: { type: object }
+                queryParams: { type: object }
+                runLabel: { type: string }
+      responses:
+        '201':
+          description: Scheduled test created
+
+  /api/scheduler/{id}:
+    put:
+      tags: [Scheduler]
+      summary: Update a scheduled test
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [Scheduler]
+      summary: Delete a scheduled test
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deleted
+
+  /api/alerts:
+    get:
+      tags: [Alerts]
+      summary: List alert configurations
+      responses:
+        '200':
+          description: Alert list
+    post:
+      tags: [Alerts]
+      summary: Create an alert configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, destination]
+              properties:
+                type: { type: string, enum: [email, slack] }
+                destination: { type: string }
+                thresholdMs: { type: integer, default: 500 }
+                label: { type: string }
+      responses:
+        '201':
+          description: Alert created
+
+  /api/alerts/{id}:
+    put:
+      tags: [Alerts]
+      summary: Update an alert
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [Alerts]
+      summary: Delete an alert
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deleted
