@@ -24,7 +24,15 @@ const app = express();
 
 // Security & parsing
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || '*', credentials: true }));
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || process.env.CLIENT_ORIGIN) {
+      return callback(null, process.env.CLIENT_ORIGIN || '*');
+    }
+    return callback(null, origin);
+  },
+  credentials: true 
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined'));
 
